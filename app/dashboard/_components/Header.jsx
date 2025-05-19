@@ -16,7 +16,7 @@ function Header() {
 
   return (
     <div className='flex p-4 items-center justify-between bg-gray-300 shadow-md'>
-      <Image src={'/logo-transparent.png'} width={50} height={50} alt={'logo'} />
+      <Image src={'/logo-transparent.png'} width={100} height={100} alt={'logo'} className='scale-150 mx-2' />
       
       <ul className='hidden md:flex gap-6'>
         <li>
