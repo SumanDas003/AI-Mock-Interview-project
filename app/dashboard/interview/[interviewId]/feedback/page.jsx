@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 function Feedback() {
     const { interviewId } = useParams();
     const [feedbackData, setFeedbackData] = useState([]);
-    const [averageRating, setAverageRating] = useState<number | null>(null);
+    const [averageRating, setAverageRating] = useState(null);
 
     const router = useRouter();
 
@@ -26,10 +26,16 @@ function Feedback() {
             setFeedbackData(result);
 
             if (result.length > 0) {
-                // Convert rating to number explicitly to avoid string concatenation
-                const totalRating = result.reduce((sum, item) => sum + Number(item.rating), 0);
-                const avg = totalRating / result.length;
-                setAverageRating(parseFloat(avg.toFixed(1))); // Rounded to 1 decimal place
+                // Defensive conversion: make sure rating is a number
+                const ratings = result.map(item => {
+                    const r = Number(item.rating);
+                    return isNaN(r) ? 0 : r;  // fallback to 0 if not a number
+                });
+
+                const totalRating = ratings.reduce((sum, rating) => sum + rating, 0);
+                const avg = totalRating / ratings.length;
+
+                setAverageRating(parseFloat(avg.toFixed(1))); // rounded to 1 decimal place
             } else {
                 setAverageRating(null);
             }
