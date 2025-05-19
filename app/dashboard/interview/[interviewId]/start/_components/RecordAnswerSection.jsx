@@ -21,10 +21,6 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
   const interviewId = params.interviewId;
   const { user } = useUser();
 
-  // Track the last processed result index to avoid duplicates
-  const lastProcessedIndexRef = useRef(-1);
-  const finalTranscriptRef = useRef('');
-
   const {
     error,
     isRecording,
@@ -35,132 +31,112 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
   } = useSpeechToText({
     continuous: true,
     useLegacyResults: false,
-    timeout: 5000, // Add timeout to prevent hanging
   });
 
-  useEffect(() => {
-    if (error) {
-      toast.error(`Speech recognition error: ${error}`);
-    }
-  }, [error]);
+  const lastTranscriptRef = useRef('');
 
   useEffect(() => {
-    if (results.length === 0 || results.length <= lastProcessedIndexRef.current) {
-      return;
+    if (results.length === 0) return;
+
+    const latestTranscript = results[results.length - 1].transcript.trim();
+    const previousTranscript = lastTranscriptRef.current;
+
+    if (latestTranscript.startsWith(previousTranscript)) {
+      // Append only new text after the previous transcript
+      const newText = latestTranscript.slice(previousTranscript.length).trim();
+
+      if (newText) {
+        setUserAnswer(prev => (prev ? prev + ' ' + newText : newText));
+      }
+    } else {
+      // Replace fully if no match (e.g., correction or restart)
+      setUserAnswer(latestTranscript);
     }
 
-    // Process only new results
-    const newResults = results.slice(lastProcessedIndexRef.current + 1);
-    lastProcessedIndexRef.current = results.length - 1;
-
-    // Combine all transcripts
-    const newTranscript = newResults
-      .map(r => r.transcript.trim())
-      .filter(t => t.length > 0)
-      .join(' ');
-
-    if (newTranscript) {
-      finalTranscriptRef.current = `${finalTranscriptRef.current} ${newTranscript}`.trim();
-      setUserAnswer(finalTranscriptRef.current);
-    }
+    lastTranscriptRef.current = latestTranscript;
   }, [results]);
 
   useEffect(() => {
-    if (shouldSubmit && !isRecording && userAnswer) {
+    if (shouldSubmit && !isRecording) {
       handleAnswerSubmission();
       setShouldSubmit(false);
     }
   }, [userAnswer, isRecording, shouldSubmit]);
 
-  const toggleRecording = () => {
+  const SaveUserAnswer = () => {
     if (isRecording) {
       setLoading(true);
       stopSpeechToText();
       setShouldSubmit(true);
     } else {
-      // Reset state for new recording
-      lastProcessedIndexRef.current = -1;
-      finalTranscriptRef.current = '';
+      setLoading(false);
       setUserAnswer('');
+      lastTranscriptRef.current = '';
       setResults([]);
       startSpeechToText();
     }
   };
 
   const handleAnswerSubmission = async () => {
-    if (!userAnswer || userAnswer.trim().length < 10) {
-      toast.error('Please provide a more detailed answer (at least 10 characters).');
-      setLoading(false);
+    if (userAnswer.trim().length < 10) {
+      toast.error('Please speak a bit more clearly or longer.');
       return;
     }
 
     const feedbackPrompt = `
       Question: ${mockInterviewQuestion.questions[activeQuestionIndex]},
       User Answer: ${userAnswer}.
-      Based on the question and answer, provide a JSON response with:
+      Based on the question and answer, give a JSON response with:
       {
         "rating": "number out of 10",
         "feedback": "constructive advice in 3-5 lines"
       }
-      Return only the JSON object, no additional text or markdown.
     `;
 
     try {
       const result = await chatSession.sendMessage(feedbackPrompt);
-      const responseText = await result.response.text();
-      
-      // More robust JSON parsing
-      let jsonResponse;
-      try {
-        // Try to parse directly first
-        jsonResponse = JSON.parse(responseText);
-      } catch (e) {
-        // Fallback to extracting from code block if direct parse fails
-        const jsonMatch = responseText.match(/{[\s\S]*?}/);
-        if (jsonMatch) {
-          jsonResponse = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error('Could not parse AI response');
-        }
+      const mockJsonResp = await result.response.text();
+      const jsonMatch = mockJsonResp.match(/```json\s*([\s\S]*?)\s*```/);
+
+      if (jsonMatch && jsonMatch[1]) {
+        const cleanedJson = jsonMatch[1].trim();
+        const parsedJson = JSON.parse(cleanedJson);
+
+        await db.insert(UserAnswer).values({
+          mockId: interviewId,
+          question: mockInterviewQuestion.questions[activeQuestionIndex],
+          correctAnswer: mockInterviewQuestion.answers[activeQuestionIndex],
+          userAnswer,
+          rating: Number(parsedJson.rating),
+          feedback: parsedJson.feedback,
+          createdAt: moment().format('YYYY-MM-DD HH:mm:ss'),
+          createdBy: user?.primaryEmailAddress.emailAddress,
+        });
+
+        toast.success('Answer saved successfully!');
+        setResults([]);
+        setUserAnswer('');
+        lastTranscriptRef.current = '';
+      } else {
+        toast.error('Could not parse feedback from AI.');
       }
-
-      if (!jsonResponse.rating || !jsonResponse.feedback) {
-        throw new Error('Invalid feedback format');
-      }
-
-      await db.insert(UserAnswer).values({
-        mockId: interviewId,
-        question: mockInterviewQuestion.questions[activeQuestionIndex],
-        correctAnswer: mockInterviewQuestion.answers[activeQuestionIndex],
-        userAnswer,
-        rating: Number(jsonResponse.rating),
-        feedback: jsonResponse.feedback,
-        createdAt: moment().format("YYYY-MM-DD HH:mm:ss"),
-        createdBy: user?.primaryEmailAddress?.emailAddress || 'unknown',
-      });
-
-      toast.success("Answer saved successfully!");
-      setResults([]);
-      setUserAnswer('');
-      finalTranscriptRef.current = '';
     } catch (err) {
-      console.error('Submission error:', err);
-      toast.error("Error processing feedback. Please try again.");
+      console.error(err);
+      toast.error('Error processing feedback.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className='flex flex-col items-center gap-5'>
-      <div className='flex flex-col items-center justify-center bg-black rounded-lg p-5 mt-20 relative'>
+    <div className="flex flex-col items-center gap-5">
+      <div className="flex flex-col items-center justify-center bg-black rounded-lg p-5 mt-20 relative">
         <Image
           src="/webcam.png"
           alt="Webcam"
           width={200}
           height={200}
-          className='absolute'
-          priority // Add priority for mobile performance
+          className="absolute"
         />
         <Webcam
           mirrored
@@ -169,34 +145,14 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
             height: 300,
             zIndex: 10,
           }}
-          screenshotFormat="image/jpeg"
-          videoConstraints={{
-            facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          }}
         />
       </div>
 
-      {userAnswer && (
-        <div className="w-full max-w-2xl p-4 bg-gray-100 rounded-lg">
-          <h3 className="font-semibold mb-2">Your Answer:</h3>
-          <p>{userAnswer}</p>
-        </div>
-      )}
-
-      <Button 
-        disabled={loading} 
-        variant="outline" 
-        className='my-5' 
-        onClick={toggleRecording}
-      >
+      <Button disabled={loading} variant="outline" className="my-5" onClick={SaveUserAnswer}>
         {isRecording ? (
-          <h2 className='text-red-600 flex gap-2 animate-pulse'>
+          <h2 className="text-red-600 flex gap-2 animate-pulse">
             <Mic /> Recording...
           </h2>
-        ) : loading ? (
-          'Processing...'
         ) : (
           'Record Answer'
         )}
