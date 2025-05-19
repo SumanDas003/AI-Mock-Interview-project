@@ -35,13 +35,13 @@ function Feedback() {
                 const totalRating = ratings.reduce((sum, rating) => sum + rating, 0);
                 const avg = totalRating / ratings.length;
 
-                setAverageRating(parseFloat(avg.toFixed(1))); // rounded to 1 decimal place
+                setAverageRating(parseFloat(avg.toFixed(1))); 
             } else {
                 setAverageRating(null);
             }
         };
 
-        if (interviewId) {
+        if (interviewId) { 
             GetFeedback();
         }
     }, [interviewId]);
@@ -94,7 +94,7 @@ function Feedback() {
             )}
 
             <Button className='mt-6' onClick={() => router.replace('/dashboard')}>Go Home</Button>
-        </div>
+        </div> 
     );
 }
 
