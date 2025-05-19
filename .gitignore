@@ -1,41 +1,67 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Node modules
+node_modules/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Build output
+.next/
+out/
+dist/
 
-# testing
-/coverage
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Log files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# OS-specific files
+.DS_Store
+Thumbs.db
 
-# vercel
-.vercel
+# Editor-specific files
+.vscode/
+.idea/
+*.swp
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# Dependency lock files (optional, if using only one package manager)
+# Uncomment the one you're not using
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# SQLite or local dev DBs (if any)
+*.sqlite
+*.sqlite3
+
+# Output of migrations (if compiled/generated)
+migrations/*.tsbuildinfo
+
+# Public runtime assets you may want to exclude (if auto-generated)
+public/*.log
+
+# Next.js telemetry
+.next/telemetry/
+
+# Testing related
+coverage/
+*.lcov
+
+# Drizzle ORM cache (optional)
+.drizzle/
+
+# Mac local files
+Icon?
+
+# Optional: Ignore backup files
+*.bak
+*.tmp
+*.old
+
+# Ignore AI project artifacts or model cache (if generated)
+AI-Mock-Interview-project/*.cache
+AI-Mock-Interview-project/*.log
