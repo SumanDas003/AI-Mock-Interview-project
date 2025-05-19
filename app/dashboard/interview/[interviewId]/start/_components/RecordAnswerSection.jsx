@@ -15,14 +15,14 @@ import moment from 'moment';
 
 function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
   const params = useParams();
+  const interviewId = params.interviewId;
+  const { user } = useUser();
   const [userAnswer, setUserAnswer] = useState('');
   const [shouldSubmit, setShouldSubmit] = useState(false);
   const [loading, setLoading] = useState(false);
-  const interviewId = params.interviewId;
-  const { user } = useUser();
+  const lastFinalTranscript = useRef('');
 
   const {
-    error,
     isRecording,
     results,
     startSpeechToText,
@@ -33,26 +33,28 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
     useLegacyResults: false,
   });
 
-  const lastTranscriptRef = useRef('');
-
+  // Append only new final results
   useEffect(() => {
-    if (results.length > 0) {
-      const fullTranscript = results.map((r) => r.transcript).join(' ').trim();
+    if (results.length === 0) return;
 
-      // Avoid duplicate transcripts
-      if (fullTranscript !== lastTranscriptRef.current) {
-        lastTranscriptRef.current = fullTranscript;
-        setUserAnswer(fullTranscript);
-      }
+    const latest = results[results.length - 1].transcript.trim();
+
+    if (latest && !lastFinalTranscript.current.endsWith(latest)) {
+      setUserAnswer((prev) => {
+        const updated = prev.trim() + ' ' + latest;
+        lastFinalTranscript.current = updated;
+        return updated.trim();
+      });
     }
   }, [results]);
 
+  // Handle submission trigger after recording stops
   useEffect(() => {
     if (shouldSubmit && !isRecording) {
       handleAnswerSubmission();
       setShouldSubmit(false);
     }
-  }, [userAnswer, isRecording, shouldSubmit]);
+  }, [shouldSubmit, isRecording]);
 
   const SaveUserAnswer = () => {
     if (isRecording) {
@@ -60,9 +62,8 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
       stopSpeechToText();
       setShouldSubmit(true);
     } else {
-      setLoading(false);
       setUserAnswer('');
-      lastTranscriptRef.current = '';
+      lastFinalTranscript.current = '';
       setResults([]);
       startSpeechToText();
     }
@@ -74,7 +75,7 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
       return;
     }
 
-    const feedbackPrompt = `
+    const prompt = `
       Question: ${mockInterviewQuestion.questions[activeQuestionIndex]},
       User Answer: ${userAnswer}.
       Based on the question and answer, give a JSON response with:
@@ -85,35 +86,34 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
     `;
 
     try {
-      const result = await chatSession.sendMessage(feedbackPrompt);
-      const mockJsonResp = await result.response.text();
-      const jsonMatch = mockJsonResp.match(/```json\s*([\s\S]*?)\s*```/);
+      const result = await chatSession.sendMessage(prompt);
+      const text = await result.response.text();
+      const match = text.match(/```json\s*([\s\S]*?)\s*```/);
 
-      if (jsonMatch && jsonMatch[1]) {
-        const cleanedJson = jsonMatch[1].trim();
-        const parsedJson = JSON.parse(cleanedJson);
+      if (match?.[1]) {
+        const parsed = JSON.parse(match[1].trim());
 
         await db.insert(UserAnswer).values({
           mockId: interviewId,
           question: mockInterviewQuestion.questions[activeQuestionIndex],
           correctAnswer: mockInterviewQuestion.answers[activeQuestionIndex],
           userAnswer,
-          rating: Number(parsedJson.rating),
-          feedback: parsedJson.feedback,
-          createdAt: moment().format("YYYY-MM-DD HH:mm:ss"),
+          rating: Number(parsed.rating),
+          feedback: parsed.feedback,
+          createdAt: moment().format('YYYY-MM-DD HH:mm:ss'),
           createdBy: user?.primaryEmailAddress.emailAddress,
         });
 
-        toast.success("Answer saved successfully!");
-        setResults([]);
+        toast.success('Answer saved successfully!');
         setUserAnswer('');
-        lastTranscriptRef.current = '';
+        setResults([]);
+        lastFinalTranscript.current = '';
       } else {
-        toast.error("Could not parse feedback from AI.");
+        toast.error('Could not parse feedback from AI.');
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("Error processing feedback.");
+    } catch (error) {
+      console.error(error);
+      toast.error('Error processing feedback.');
     } finally {
       setLoading(false);
     }
@@ -123,23 +123,24 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
     <div className='flex flex-col items-center gap-5'>
       <div className='flex flex-col items-center justify-center bg-black rounded-lg p-5 mt-20 relative'>
         <Image
-          src="/webcam.png"
-          alt="Webcam"
+          src='/webcam.png'
+          alt='Webcam'
           width={200}
           height={200}
           className='absolute'
         />
         <Webcam
           mirrored
-          style={{
-            width: '100%',
-            height: 300,
-            zIndex: 10,
-          }}
+          style={{ width: '100%', height: 300, zIndex: 10 }}
         />
       </div>
 
-      <Button disabled={loading} variant="outline" className='my-5' onClick={SaveUserAnswer}>
+      <Button
+        disabled={loading}
+        variant='outline'
+        className='my-5'
+        onClick={SaveUserAnswer}
+      >
         {isRecording ? (
           <h2 className='text-red-600 flex gap-2 animate-pulse'>
             <Mic /> Recording...
