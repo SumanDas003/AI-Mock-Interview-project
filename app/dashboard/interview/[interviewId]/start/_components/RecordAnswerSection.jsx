@@ -1,5 +1,5 @@
-"use client";
-import React, { useState, useEffect, use } from 'react';
+'use client';
+import React, { useEffect, useRef, useState } from 'react';
 import Webcam from 'react-webcam';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -10,22 +10,19 @@ import { chatSession } from '@/utils/GeminiAIModel';
 import { useUser } from '@clerk/nextjs';
 import { db } from '@/utils/db';
 import { UserAnswer } from '@/utils/schema';
-import { eq } from 'drizzle-orm';
 import { useParams } from 'next/navigation';
 import moment from 'moment';
-
 
 function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
   const params = useParams();
   const [userAnswer, setUserAnswer] = useState('');
-  const [shouldSubmit, setShouldSubmit] = useState(false); // trigger after recording
-  const {user} = useUser();
+  const [shouldSubmit, setShouldSubmit] = useState(false);
   const [loading, setLoading] = useState(false);
   const interviewId = params.interviewId;
+  const { user } = useUser();
 
   const {
     error,
-    interimResult,
     isRecording,
     results,
     startSpeechToText,
@@ -36,15 +33,20 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
     useLegacyResults: false,
   });
 
-  // Update user answer from results
+  const lastTranscriptRef = useRef('');
+
   useEffect(() => {
     if (results.length > 0) {
-      const fullTranscript = results.map((r) => r.transcript).join(' ');
-      setUserAnswer(fullTranscript);
+      const fullTranscript = results.map((r) => r.transcript).join(' ').trim();
+
+      // Avoid duplicate transcripts
+      if (fullTranscript !== lastTranscriptRef.current) {
+        lastTranscriptRef.current = fullTranscript;
+        setUserAnswer(fullTranscript);
+      }
     }
   }, [results]);
 
-  // When user stops recording and results have updated
   useEffect(() => {
     if (shouldSubmit && !isRecording) {
       handleAnswerSubmission();
@@ -56,22 +58,24 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
     if (isRecording) {
       setLoading(true);
       stopSpeechToText();
-      setShouldSubmit(true); // wait for results to flush, then submit
+      setShouldSubmit(true);
     } else {
       setLoading(false);
       setUserAnswer('');
+      lastTranscriptRef.current = '';
+      setResults([]);
       startSpeechToText();
     }
   };
 
   const handleAnswerSubmission = async () => {
     if (userAnswer.trim().length < 10) {
-      toast.error('Error while saving your answer, please record again.');
+      toast.error('Please speak a bit more clearly or longer.');
       return;
     }
 
     const feedbackPrompt = `
-      Questions: ${mockInterviewQuestion.questions[activeQuestionIndex]},
+      Question: ${mockInterviewQuestion.questions[activeQuestionIndex]},
       User Answer: ${userAnswer}.
       Based on the question and answer, give a JSON response with:
       {
@@ -88,30 +92,30 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
       if (jsonMatch && jsonMatch[1]) {
         const cleanedJson = jsonMatch[1].trim();
         const parsedJson = JSON.parse(cleanedJson);
-        console.log("Feedback from Gemini:", parsedJson);
 
-        const userAnswerData = await db.insert(UserAnswer).values({
+        await db.insert(UserAnswer).values({
           mockId: interviewId,
           question: mockInterviewQuestion.questions[activeQuestionIndex],
           correctAnswer: mockInterviewQuestion.answers[activeQuestionIndex],
-          userAnswer:userAnswer,
-          rating: parsedJson.rating,
+          userAnswer,
+          rating: Number(parsedJson.rating),
           feedback: parsedJson.feedback,
           createdAt: moment().format("YYYY-MM-DD HH:mm:ss"),
           createdBy: user?.primaryEmailAddress.emailAddress,
         });
-        if(userAnswerData){
-          toast.success("Answer saved successfully!");
-          setResults([]);
-          setUserAnswer('');
-        }
-        setLoading(false);
+
+        toast.success("Answer saved successfully!");
+        setResults([]);
+        setUserAnswer('');
+        lastTranscriptRef.current = '';
       } else {
         toast.error("Could not parse feedback from AI.");
       }
     } catch (err) {
       console.error(err);
-      toast.error("An error occurred while processing the feedback.");
+      toast.error("Error processing feedback.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -126,7 +130,7 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
           className='absolute'
         />
         <Webcam
-          mirrored={true}
+          mirrored
           style={{
             width: '100%',
             height: 300,
@@ -144,11 +148,8 @@ function RecordAnswerSection({ mockInterviewQuestion, activeQuestionIndex }) {
           'Record Answer'
         )}
       </Button>
-
-      {/*<Button onClick={() => console.log("User Answer:", userAnswer)}>
-        Show User Answer
-      </Button>*/}
     </div>
   );
 }
+
 export default RecordAnswerSection;
