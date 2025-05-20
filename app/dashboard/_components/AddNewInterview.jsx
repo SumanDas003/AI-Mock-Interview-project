@@ -7,17 +7,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { chatSession } from "@/utils/GeminiAIModel";
+import { MockInterview } from "@/utils/schema";
+import { v4 as uuidv4 } from "uuid";
+import moment from "moment";
+import { db } from "@/utils/db";
 import { Button } from "@/components/ui/button";
 import { Ghost, LoaderCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { chatSession } from "@/utils/GeminiAIModel";
-import { MockInterview } from "@/utils/schema";
-import { v4 as uuidv4 } from "uuid";
-import { useUser } from "@clerk/nextjs";
-import moment from "moment";
-import { db } from "@/utils/db";
-import { useRouter } from "next/navigation";
 
 function AddNewInterview() {
   const [openDialog, setOpenDialog] = useState(false);
