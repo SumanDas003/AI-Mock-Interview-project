@@ -59,3 +59,10 @@ Icon?
 AI-Mock-Interview-project/*.cache
 AI-Mock-Interview-project/*.log
 
+# Ignore environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+

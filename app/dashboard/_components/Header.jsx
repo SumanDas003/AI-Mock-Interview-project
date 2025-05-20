@@ -17,7 +17,7 @@ function Header() {
   const navItems = [
     { name: 'Dashboard', href: '/dashboard' },
     { name: 'Upgrade', href: '/dashboard/Upgrade' },
-    { name: 'How it Works?', href: '/how' },
+    { name: 'How it Works?', href: '/dashboard/How' },
   ];
 
   return (
