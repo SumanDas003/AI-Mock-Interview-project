@@ -59,6 +59,3 @@ Icon?
 AI-Mock-Interview-project/*.cache
 AI-Mock-Interview-project/*.log
 
-.env
-.env.local
-.env.*.local
