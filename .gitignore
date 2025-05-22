@@ -65,4 +65,3 @@ AI-Mock-Interview-project/*.log
 .env.development
 .env.production
 .env.*.local
-
