@@ -58,4 +58,3 @@ Icon?
 # Ignore AI project artifacts or model cache (if generated)
 AI-Mock-Interview-project/*.cache
 AI-Mock-Interview-project/*.log
-
