@@ -11,20 +11,13 @@ function InterviewItemCard({ interview }) {
       <h2 className='font-bold text-purple-500'>{interview.jobPosition}</h2>
       <h2 className='text-gray-600 text-sm'>{interview.jobExperience} years of experience</h2>
       <h2 className='text-gray-400 text-xs'>Created At: {interview.createdAt}</h2>
-      <div className='flex justify-between mt-2 gap-5'>
+      <div className='flex justify-end mt-2'>
         <Button
           size="sm"
           className='bg-green-500 w-24 cursor-pointer'
           onClick={() => router.push(`/dashboard/interview/${interview.mockId}/feedback`)}
         >
           Feedback
-        </Button>
-        <Button
-          size="sm"
-          className='bg-purple-500 w-24 cursor-pointer'
-          onClick={() => router.push(`/dashboard/interview/${interview.mockId}/start`)}
-        >
-          Start
         </Button>
       </div>
     </div>
